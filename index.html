@@ -1,0 +1,755 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>LRU Cache Visualization</title>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body { 
+            margin: 0; 
+            font-family: 'Inter', Arial, sans-serif; /* Using Inter as preferred, with fallback */
+            overflow: hidden; 
+            background-color: #f0f0f0; /* Light gray background for the page */
+        }
+        canvas { 
+            display: block; 
+        }
+        #controls { 
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            background: rgba(255,255,255,0.95); /* Slightly more opaque for better readability */
+            padding: 15px; 
+            border-radius: 8px; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15); /* Softer shadow */
+            z-index: 10;
+            max-width: calc(100% - 20px); /* Ensure controls don't overflow on small screens */
+        }
+        .control-group { 
+            margin-bottom: 12px; 
+            display: flex;
+            flex-wrap: wrap; /* Allow wrapping for smaller screens */
+            align-items: center;
+        }
+        .control-group label { 
+            margin-right: 8px; 
+            display: inline-block; 
+            min-width:50px; 
+            font-weight: 500; /* Slightly bolder labels */
+            margin-bottom: 4px; /* Space for wrapped inputs */
+        }
+        .control-group input[type="text"], 
+        .control-group input[type="number"] { 
+            padding: 8px 10px; /* Increased padding */
+            border-radius: 6px; /* More rounded corners */
+            border: 1px solid #ccc; 
+            width: 70px; 
+            margin-right: 8px; /* Consistent spacing */
+            box-sizing: border-box; /* Include padding and border in the element's total width and height */
+            margin-bottom: 4px; /* Space for wrapped inputs */
+        }
+        .control-group button { 
+            padding: 8px 15px; /* Increased padding */
+            border-radius: 6px; /* More rounded corners */
+            border: none; 
+            background-color: #007bff; 
+            color: white; 
+            cursor: pointer; 
+            font-weight: 500;
+            transition: background-color 0.2s ease; /* Smooth transition */
+            margin-bottom: 4px; /* Space for wrapped inputs */
+        }
+        .control-group button:hover { 
+            background-color: #0056b3; 
+        }
+        #message { 
+            position: absolute; 
+            bottom: 10px; 
+            left: 50%; /* Centered */
+            transform: translateX(-50%); /* Centered */
+            background: rgba(0,0,0,0.8); 
+            color: white; 
+            padding: 12px 18px; /* Increased padding */
+            border-radius: 6px; 
+            z-index: 10; 
+            font-size: 14px;
+            text-align: center;
+            max-width: 90%;
+            box-sizing: border-box;
+        }
+        #cache-state { 
+            position: absolute; 
+            top: 10px; 
+            right: 10px; 
+            background: rgba(255,255,255,0.95); 
+            padding: 12px; 
+            border-radius: 8px; 
+            width: 230px; 
+            max-height: calc(100vh - 20px); 
+            overflow-y: auto; 
+            font-size:13px; 
+            z-index: 10;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        #cache-state h4 { 
+            margin-top: 0; 
+            margin-bottom: 8px; 
+            font-weight: 600; /* Bolder heading */
+            color: #333;
+        }
+        #cache-state ul { 
+            list-style-type: none; 
+            padding-left: 0; 
+            margin:0;
+        }
+        #cache-state li { 
+            padding: 4px 0; 
+            border-bottom: 1px solid #eee; 
+            color: #555;
+        }
+        #cache-state li:last-child { 
+            border-bottom: none; 
+        }
+        #cache-stats {
+            margin-top: 8px;
+            font-weight: 500;
+            color: #333;
+        }
+        #loader {
+            position: absolute; top: 50%; left: 50%; 
+            transform: translate(-50%, -50%); /* Keep this for centering */
+            border: 8px solid #f3f3f3; 
+            border-radius: 50%; 
+            border-top: 8px solid #007bff; /* Match button color */
+            width: 50px; height: 50px; 
+            animation: spin 1s linear infinite; 
+            display: none; 
+            z-index: 20;
+        }
+        @keyframes spin { 
+            0% { transform: translate(-50%, -50%) rotate(0deg); } /* Adjust transform for centering */
+            100% { transform: translate(-50%, -50%) rotate(360deg); } /* Adjust transform for centering */
+        }
+
+        /* Responsive adjustments for smaller screens */
+        @media (max-width: 600px) {
+            #controls {
+                top: 5px; left: 5px; right: 5px; /* Take more width */
+                max-width: calc(100% - 10px);
+                padding: 10px;
+            }
+            .control-group {
+                flex-direction: column; /* Stack controls vertically */
+                align-items: stretch; /* Make inputs full width */
+            }
+            .control-group input[type="text"],
+            .control-group input[type="number"],
+            .control-group button {
+                width: 100%; /* Full width for inputs and buttons */
+                margin-right: 0;
+                margin-bottom: 8px; /* Space between stacked items */
+            }
+            .control-group label {
+                min-width: auto; /* Allow label to be its natural width */
+                margin-bottom: 2px;
+            }
+            #cache-state {
+                display: none; /* Hide detailed cache state on very small screens to save space */
+            }
+            #message {
+                font-size: 12px;
+                padding: 8px 12px;
+                bottom: 5px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="loader"></div>
+    <div id="controls">
+        <div class="control-group">
+            <label for="capacity">Capacity:</label><input type="number" id="capacity" value="5" min="1">
+            <button id="initCacheBtn">Initialize Cache</button>
+        </div>
+        <hr style="border: 0; border-top: 1px solid #ddd; margin: 15px 0;">
+        <h4>Operations:</h4>
+        <div class="control-group">
+            <label for="putKey">Key:</label><input type="text" id="putKey" size="5" placeholder="e.g., A">
+            <label for="putValue">Value:</label><input type="text" id="putValue" size="5" placeholder="e.g., 1">
+            <button id="putBtn">Put</button>
+        </div>
+        <div class="control-group">
+            <label for="getKey">Key:</label><input type="text" id="getKey" size="5" placeholder="e.g., A">
+            <button id="getBtn">Get</button>
+        </div>
+    </div>
+
+    <div id="message">Set capacity and initialize the cache to begin.</div>
+
+    <div id="cache-state">
+        <h4>Cache Contents (LRU &rarr; MRU):</h4>
+        <ul id="cache-list"></ul>
+        <p id="cache-stats">Items: 0/0</p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.9.1/gsap.min.js"></script>
+    <!-- OrbitControls for camera manipulation -->
+    <script>
+        // OrbitControls is typically part of the examples/jsm/controls directory in Three.js
+        // For simplicity in a single file, we'll fetch it from a CDN if available,
+        // or define a basic version if not.
+        // It's better to download and host it yourself for production.
+        // Using a common CDN source for OrbitControls:
+        // Note: This might change, always check for the latest stable version/source.
+        // For this example, we'll assume it's loaded or provide a fallback.
+        if (typeof THREE.OrbitControls === 'undefined') {
+            // A very basic OrbitControls might be too complex to inline here.
+            // For robust behavior, ensure OrbitControls is loaded.
+            // This example will proceed assuming it's available via a separate script tag
+            // or included in a custom Three.js build.
+            // We'll add a placeholder script tag for it:
+            const orbitControlsScript = document.createElement('script');
+            orbitControlsScript.src = 'https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js';
+            document.head.appendChild(orbitControlsScript);
+        }
+    </script>
+
+    <script>
+        // --- LRU Cache Logic (JavaScript Translation from Python) ---
+        class Node {
+            constructor(key = null, val = null, next = null, prev = null) {
+                this.key = key;
+                this.val = val;
+                this.next = next;
+                this.prev = prev;
+                this.threeJSVisual = null; // Reference to its 3D representation
+            }
+        }
+
+        class DLL { // Doubly Linked List
+            constructor() {
+                this.head = new Node(); // Dummy head node
+                this.tail = new Node(); // Dummy tail node
+                this.head.next = this.tail;
+                this.tail.prev = this.head;
+                this.count = 0;
+            }
+
+            // Adds a node to the tail of the list (Most Recently Used position)
+            addNode(node) {
+                node.prev = this.tail.prev;
+                node.next = this.tail;
+                this.tail.prev.next = node;
+                this.tail.prev = node;
+                this.count++;
+            }
+
+            // Removes a given node from the list
+            removeNode(node) {
+                // Basic checks to ensure node is valid and part of a list
+                if (!node || node === this.head || node === this.tail || !node.prev || !node.next) {
+                    // console.warn("Attempted to remove an invalid or sentinel node.");
+                    return;
+                }
+                const prevNode = node.prev;
+                const nextNode = node.next;
+                prevNode.next = nextNode;
+                nextNode.prev = prevNode;
+                this.count--;
+                // Clean up pointers of the removed node to prevent memory leaks if it's reused
+                node.prev = null;
+                node.next = null;
+            }
+
+            // Removes and returns the node from the head of the list (Least Recently Used)
+            removeFromHead() {
+                if (this.head.next === this.tail) return null; // List is empty
+                const nodeToRemove = this.head.next;
+                this.removeNode(nodeToRemove);
+                return nodeToRemove;
+            }
+
+            // Moves an existing node to the tail of the list (marks as Most Recently Used)
+            moveToTail(node) {
+                this.removeNode(node);
+                this.addNode(node);
+            }
+
+            // Helper to get all nodes in an array from LRU to MRU
+            toArray() {
+                const nodes = [];
+                let current = this.head.next;
+                while (current !== this.tail) {
+                    nodes.push(current);
+                    current = current.next;
+                }
+                return nodes;
+            }
+        }
+
+        class LRUCache {
+            constructor(capacity) {
+                this.nodeQ = new DLL();       // Doubly linked list for MRU/LRU order
+                this.nodeDict = new Map();    // Hash map for O(1) key lookup
+                this.cap = capacity;          // Maximum capacity of the cache
+            }
+
+            get(key) {
+                if (this.nodeDict.has(key)) {
+                    const node = this.nodeDict.get(key);
+                    this.nodeQ.moveToTail(node); // Mark as most recently used
+                    return { status: 'hit', node: node, value: node.val };
+                }
+                return { status: 'miss', value: -1 }; // Key not found
+            }
+
+            put(key, value) {
+                let evictedNode = null;
+                let operationType = ''; // 'update', 'new'
+                let targetNode = null;
+
+                if (this.nodeDict.has(key)) { // Key already exists, update value and move to MRU
+                    const node = this.nodeDict.get(key);
+                    node.val = value;
+                    this.nodeQ.moveToTail(node);
+                    targetNode = node;
+                    operationType = 'update';
+                } else { // New key
+                    if (this.nodeQ.count >= this.cap) { // Cache is full, evict LRU
+                        evictedNode = this.nodeQ.removeFromHead();
+                        if (evictedNode) {
+                            this.nodeDict.delete(evictedNode.key);
+                        }
+                    }
+                    const newNode = new Node(String(key), String(value)); // Ensure key/value are strings for consistency
+                    this.nodeQ.addNode(newNode);
+                    this.nodeDict.set(String(key), newNode);
+                    targetNode = newNode;
+                    operationType = 'new';
+                }
+                return { operationType, targetNode, evictedNode };
+            }
+        }
+
+        // --- Three.js Visualization Globals ---
+        let scene, camera, renderer, controls;
+        let lruCacheInstance; // Holds the LRUCache object
+        let isLoading = false; // To prevent concurrent operations during animations
+
+        const NODE_WIDTH = 1.2, NODE_HEIGHT = 1.2, NODE_DEPTH = 0.8; // Dimensions of cache item cubes
+        const NODE_SPACING = 0.5; // Space between cubes
+        const Y_POSITION = 0;     // Vertical position of the cubes
+        const ANIMATION_DURATION = 0.6; // Duration for animations (in seconds)
+
+        // DOM Elements
+        const loaderElement = document.getElementById('loader');
+        const messageElement = document.getElementById('message');
+        const cacheListElement = document.getElementById('cache-list');
+        const cacheStatsElement = document.getElementById('cache-stats');
+
+        // Initialize Three.js environment
+        function initThreeJS() {
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0xCFD8DC); // A softer, bluish-gray background
+
+            // Camera setup
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+            camera.position.set(0, 2.5, 7); // Adjusted camera position for better view
+
+            // Renderer setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setPixelRatio(window.devicePixelRatio); // For sharper rendering on high DPI screens
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true; // Enable shadows
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+
+            // OrbitControls (ensure it's loaded)
+            if (typeof THREE.OrbitControls !== 'undefined') {
+                controls = new THREE.OrbitControls(camera, renderer.domElement);
+                controls.enableDamping = true; // Smooth camera movement
+                controls.dampingFactor = 0.05;
+                controls.minDistance = 3;
+                controls.maxDistance = 20;
+                controls.target.set(0, Y_POSITION, 0); // Target the center of the cache visualization
+            } else {
+                console.warn("OrbitControls not loaded. Camera interaction will be limited.");
+            }
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0xffffff, 0.6); // Softer ambient light
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(5, 10, 7.5);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 1024;
+            directionalLight.shadow.mapSize.height = 1024;
+            scene.add(directionalLight);
+
+            // Ground plane
+            const planeGeometry = new THREE.PlaneGeometry(30, 30); // Larger plane
+            const planeMaterial = new THREE.MeshStandardMaterial({ color: 0xB0BEC5, side: THREE.DoubleSide }); // Slightly darker plane
+            const plane = new THREE.Mesh(planeGeometry, planeMaterial);
+            plane.rotation.x = -Math.PI / 2;
+            plane.position.y = -NODE_HEIGHT / 2 - 0.1; // Position plane below nodes
+            plane.receiveShadow = true;
+            scene.add(plane);
+
+            window.addEventListener('resize', onWindowResize, false);
+            animateLoop(); // Start the animation loop
+        }
+
+        // Handle window resize events
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Main animation loop
+        function animateLoop() {
+            requestAnimationFrame(animateLoop);
+            if (controls && controls.update) controls.update(); // Update OrbitControls if available
+            renderer.render(scene, camera);
+        }
+
+        // Creates a canvas texture for node labels (Key and Value)
+        function createTextCanvas(text, fontSize = 48, width = 256, height = 256,bgColor = 'rgba(250, 250, 250, 0.95)', textColor = '#333333') {
+            const canvas = document.createElement('canvas');
+            canvas.width = width;
+            canvas.height = height;
+            const context = canvas.getContext('2d');
+            
+            // Rounded rectangle for background
+            context.fillStyle = bgColor;
+            const cornerRadius = 20;
+            context.beginPath();
+            context.moveTo(cornerRadius, 0);
+            context.lineTo(width - cornerRadius, 0);
+            context.quadraticCurveTo(width, 0, width, cornerRadius);
+            context.lineTo(width, height - cornerRadius);
+            context.quadraticCurveTo(width, height, width - cornerRadius, height);
+            context.lineTo(cornerRadius, height);
+            context.quadraticCurveTo(0, height, 0, height - cornerRadius);
+            context.lineTo(0, cornerRadius);
+            context.quadraticCurveTo(0, 0, cornerRadius, 0);
+            context.closePath();
+            context.fill();
+
+            // Text properties
+            context.font = `bold ${fontSize}px 'Inter', Arial, sans-serif`;
+            context.fillStyle = textColor;
+            context.textAlign = 'center';
+            context.textBaseline = 'middle';
+            
+            const lines = text.split('\n');
+            const lineHeight = fontSize * 1.2;
+            const totalTextHeight = lines.length * lineHeight;
+            let startY = (height - totalTextHeight) / 2 + lineHeight / 2 - (fontSize*0.1); // Adjust for better vertical centering
+
+            lines.forEach((line, index) => {
+                context.fillText(line, width / 2, startY + index * lineHeight);
+            });
+            return canvas;
+        }
+        
+        // Creates the 3D visual (cube with text) for a cache node
+        function createNodeVisual(node) {
+            const group = new THREE.Group();
+            group.castShadow = true;
+
+            const geometry = new THREE.BoxGeometry(NODE_WIDTH, NODE_HEIGHT, NODE_DEPTH);
+            const material = new THREE.MeshStandardMaterial({ 
+                color: 0x007bff, // Primary color
+                roughness: 0.5,
+                metalness: 0.1
+            });
+            const cube = new THREE.Mesh(geometry, material);
+            cube.castShadow = true;
+            cube.receiveShadow = true; // Cubes can receive shadows from other cubes
+            group.add(cube);
+
+            // Create text texture and apply to a plane on the cube's face
+            const textCanvas = createTextCanvas(`K: ${node.key}\nV: ${node.val}`);
+            const texture = new THREE.CanvasTexture(textCanvas);
+            texture.needsUpdate = true; // Ensure texture updates
+            const textMaterial = new THREE.MeshBasicMaterial({ map: texture, transparent: true, side: THREE.DoubleSide });
+            const textPlane = new THREE.Mesh(new THREE.PlaneGeometry(NODE_WIDTH, NODE_HEIGHT), textMaterial);
+            textPlane.position.z = NODE_DEPTH / 2 + 0.01; // Position text slightly in front of the cube face
+            group.add(textPlane);
+            
+            group.userData.key = node.key; // Store key for identification
+            group.userData.textPlane = textPlane; // For updating text
+            node.threeJSVisual = group; // Link the 3D visual back to the cache node object
+            return group;
+        }
+
+        // Updates the text on an existing node's visual
+        function updateNodeText(node) {
+            if (node.threeJSVisual && node.threeJSVisual.userData.textPlane) {
+                const textPlane = node.threeJSVisual.userData.textPlane;
+                const newCanvas = createTextCanvas(`K: ${node.key}\nV: ${node.val}`);
+                const newTexture = new THREE.CanvasTexture(newCanvas);
+                newTexture.needsUpdate = true;
+                
+                // Dispose of the old texture to free up GPU memory
+                if (textPlane.material.map) {
+                    textPlane.material.map.dispose();
+                }
+                textPlane.material.map = newTexture;
+                textPlane.material.needsUpdate = true; // Important for the material to refresh
+            }
+        }
+        
+        // Refreshes the layout of 3D nodes based on cache state
+        async function refreshLayout(highlightKey = null, operation = "") {
+            if (!lruCacheInstance) return;
+            isLoading = true;
+            loaderElement.style.display = 'block';
+
+            const currentNodes = lruCacheInstance.nodeQ.toArray(); // Get nodes from LRU to MRU
+            const listWidth = currentNodes.length * NODE_WIDTH + Math.max(0, currentNodes.length - 1) * NODE_SPACING;
+            const startX = -listWidth / 2 + NODE_WIDTH / 2; // Calculate starting X position for centered layout
+
+            const promises = []; // For GSAP animations
+
+            // Animate existing nodes to new positions or update them
+            currentNodes.forEach((node, index) => {
+                const targetX = startX + index * (NODE_WIDTH + NODE_SPACING);
+                if (!node.threeJSVisual) { // If node doesn't have a visual, create it (new node)
+                    const visual = createNodeVisual(node);
+                    // Animate appearance (e.g., from above and scale up)
+                    visual.position.set(targetX, Y_POSITION + NODE_HEIGHT * 1.5, 0); 
+                    visual.scale.set(0.1, 0.1, 0.1);
+                    scene.add(visual);
+                    promises.push(
+                        gsap.to(visual.position, { y: Y_POSITION, duration: ANIMATION_DURATION, ease: "back.out(1.7)" }),
+                        gsap.to(visual.scale, { x:1, y:1, z:1, duration: ANIMATION_DURATION, ease: "back.out(1.7)" })
+                    );
+                } else { // Existing node, might need to move or update text
+                    if (node.threeJSVisual.position.x !== targetX) { // Animate move if position changed
+                         promises.push(gsap.to(node.threeJSVisual.position, { x: targetX, duration: ANIMATION_DURATION, ease: "power2.inOut" }));
+                    }
+                    updateNodeText(node); // Ensure text is current (e.g., after a PUT update)
+                }
+
+                // Highlight the node if it was part of the current operation
+                if (node.key === highlightKey && node.threeJSVisual) {
+                    const cubeMesh = node.threeJSVisual.children[0]; // Assuming the cube is the first child
+                    const originalColor = cubeMesh.material.color.getHex();
+                    cubeMesh.material.color.set(0xffa500); // Orange highlight
+                    promises.push(gsap.to(cubeMesh.material.color, {
+                        r: new THREE.Color(originalColor).r,
+                        g: new THREE.Color(originalColor).g,
+                        b: new THREE.Color(originalColor).b,
+                        duration: ANIMATION_DURATION * 1.5, // Longer highlight effect
+                        delay: ANIMATION_DURATION * 0.3
+                    }));
+                }
+            });
+
+            // Identify and remove visuals for nodes no longer in the cache (evicted)
+            const currentKeysInDLL = new Set(currentNodes.map(n => n.key));
+            const visualsToRemove = [];
+            scene.children.forEach(child => {
+                // Check if child is a group, has a key, and is not in the current DLL
+                if (child.isGroup && child.userData.key !== undefined && !currentKeysInDLL.has(child.userData.key)) {
+                    visualsToRemove.push(child);
+                }
+            });
+
+            visualsToRemove.forEach(visual => {
+                // Animate removal (e.g., scale down and fade out)
+                promises.push(
+                    gsap.to(visual.scale, { x: 0.01, y: 0.01, z: 0.01, duration: ANIMATION_DURATION, ease: "power2.in", 
+                        onComplete: () => {
+                            disposeNodeVisual(visual); // Clean up Three.js resources after animation
+                        }
+                    }),
+                    gsap.to(visual.position, { y: Y_POSITION - NODE_HEIGHT, duration: ANIMATION_DURATION, ease: "power2.in" }) // Move down
+                );
+                 // Nullify the threeJSVisual reference on the corresponding cache node if it somehow still exists
+                // This is a safeguard; ideally, the evicted node object itself would have its threeJSVisual cleared.
+                lruCacheInstance.nodeDict.forEach(node => {
+                    if (node.threeJSVisual === visual) {
+                        node.threeJSVisual = null;
+                    }
+                });
+            });
+            
+            await Promise.all(promises); // Wait for all animations to complete
+            isLoading = false;
+            loaderElement.style.display = 'none';
+            updateCacheStateDisplay(); // Update the HTML list of cache contents
+        }
+        
+        // Properly disposes of Three.js resources for a node visual
+        function disposeNodeVisual(nodeVisual) {
+            if (!nodeVisual) return;
+            scene.remove(nodeVisual); // Remove from scene
+            // Traverse and dispose geometries, materials, textures
+            nodeVisual.traverse(child => {
+                if (child.isMesh) {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (child.material.map) child.material.map.dispose(); // Dispose texture
+                        child.material.dispose(); // Dispose material
+                    }
+                }
+            });
+        }
+
+        // Displays a message to the user (e.g., for operations, errors)
+        function displayMessage(text, isError = false) {
+            messageElement.textContent = text;
+            messageElement.style.color = isError ? '#f8d7da' : '#d4edda'; // Bootstrap-like alert colors
+            messageElement.style.backgroundColor = isError ? 'rgba(114, 28, 36, 0.85)' : 'rgba(21, 87, 36, 0.85)'; // Darker, more readable
+            
+            gsap.fromTo(messageElement, {opacity: 0, y: 20}, {opacity: 1, y: 0, duration: 0.4, ease: "back.out(1.2)"});
+            setTimeout(() => {
+                 gsap.to(messageElement, {opacity: 0, y: 20, duration: 0.4, ease: "power2.in", onComplete: () => {
+                     // Reset to default message only if current message hasn't been overwritten by a newer one
+                     if (messageElement.textContent === text) {
+                        messageElement.textContent = "LRU Cache Visualizer";
+                        messageElement.style.color = 'white';
+                        messageElement.style.backgroundColor = 'rgba(0,0,0,0.8)';
+                     }
+                 }});
+            }, 3500); // Message display duration
+        }
+
+        // Updates the HTML list showing cache contents and stats
+        function updateCacheStateDisplay() {
+            if (!lruCacheInstance) { // Handle case where cache is not yet initialized
+                cacheListElement.innerHTML = '<li>Cache not initialized.</li>';
+                cacheStatsElement.textContent = `Items: 0/0`;
+                return;
+            }
+            cacheListElement.innerHTML = ''; // Clear previous list
+            const nodes = lruCacheInstance.nodeQ.toArray(); // LRU to MRU
+            if (nodes.length === 0) {
+                cacheListElement.innerHTML = '<li>Cache is empty.</li>';
+            } else {
+                nodes.forEach(node => {
+                    const li = document.createElement('li');
+                    li.textContent = `Key: ${node.key}, Val: ${node.val}`;
+                    cacheListElement.appendChild(li);
+                });
+            }
+            cacheStatsElement.textContent = `Items: ${lruCacheInstance.nodeQ.count}/${lruCacheInstance.cap}`;
+        }
+
+        // --- Event Listeners for UI Controls ---
+        document.getElementById('initCacheBtn').addEventListener('click', () => {
+            if (isLoading) return; // Prevent action if an animation is in progress
+            const capacityInput = document.getElementById('capacity');
+            const capacity = parseInt(capacityInput.value);
+            if (isNaN(capacity) || capacity < 1) {
+                displayMessage("Capacity must be a positive number.", true);
+                capacityInput.focus();
+                return;
+            }
+
+            // Clear previous cache visuals thoroughly
+            if (lruCacheInstance) {
+                // Dispose all existing visuals before creating a new cache
+                scene.children.slice().forEach(child => { // Iterate over a copy for safe removal
+                    if (child.isGroup && child.userData.key !== undefined) {
+                        disposeNodeVisual(child);
+                    }
+                });
+            }
+            
+            lruCacheInstance = new LRUCache(capacity);
+            displayMessage(`Cache initialized with capacity ${capacity}.`);
+            refreshLayout(); // Initial layout refresh (will be empty)
+        });
+
+        document.getElementById('putBtn').addEventListener('click', async () => {
+            if (!lruCacheInstance) {
+                displayMessage("Initialize cache first.", true); return;
+            }
+            if (isLoading) return;
+
+            const keyInput = document.getElementById('putKey');
+            const valueInput = document.getElementById('putValue');
+            const key = keyInput.value.trim();
+            const value = valueInput.value.trim();
+
+            if (key === "" || value === "") {
+                displayMessage("Key and Value cannot be empty for Put operation.", true);
+                if (key === "") keyInput.focus(); else valueInput.focus();
+                return;
+            }
+
+            const result = lruCacheInstance.put(key, value);
+            let message = `Put: K=${key}, V=${value}.`;
+            if (result.operationType === 'update') message += " Updated existing item.";
+            else message += " Added new item.";
+            if (result.evictedNode) {
+                message += ` Evicted K=${result.evictedNode.key}.`;
+                // The evicted node's visual will be handled by refreshLayout's removal logic
+            }
+            displayMessage(message);
+            await refreshLayout(key, "put"); // Highlight the put key
+            keyInput.value = ""; // Clear input fields
+            valueInput.value = "";
+            keyInput.focus(); // Set focus back to key for next input
+        });
+
+        document.getElementById('getBtn').addEventListener('click', async () => {
+            if (!lruCacheInstance) {
+                displayMessage("Initialize cache first.", true); return;
+            }
+            if (isLoading) return;
+
+            const keyInput = document.getElementById('getKey');
+            const key = keyInput.value.trim();
+            if (key === "") {
+                displayMessage("Key cannot be empty for Get operation.", true);
+                keyInput.focus();
+                return;
+            }
+            const result = lruCacheInstance.get(key);
+            if (result.status === 'hit') {
+                displayMessage(`Get: K=${key}. Found V=${result.value}. Item moved to MRU.`);
+                await refreshLayout(key, "get"); // Highlight the got key
+            } else {
+                displayMessage(`Get: K=${key}. Cache Miss.`, true);
+            }
+            keyInput.value = ""; // Clear input field
+            keyInput.focus();
+        });
+
+        // --- Initial Setup ---
+        // Wait for OrbitControls to load if it's being fetched dynamically
+        let orbitControlsLoaded = typeof THREE.OrbitControls !== 'undefined';
+        if (!orbitControlsLoaded) {
+            const orbitScriptTag = document.querySelector('script[src*="OrbitControls.js"]');
+            if (orbitScriptTag) {
+                orbitScriptTag.onload = () => {
+                    orbitControlsLoaded = true;
+                    initThreeJS();
+                    displayMessage("Set capacity and initialize the cache to begin.");
+                    updateCacheStateDisplay();
+                };
+                orbitScriptTag.onerror = () => {
+                    console.error("Failed to load OrbitControls. Camera interaction will be limited.");
+                    initThreeJS(); // Initialize even if OrbitControls fails, with limited interaction
+                    displayMessage("Set capacity and initialize the cache to begin. (OrbitControls failed to load)");
+                    updateCacheStateDisplay();
+                }
+            } else { // Fallback if script tag wasn't added for some reason
+                 initThreeJS();
+                 displayMessage("Set capacity and initialize the cache to begin. (OrbitControls may not be available)");
+                 updateCacheStateDisplay();
+            }
+        } else {
+            initThreeJS();
+            displayMessage("Set capacity and initialize the cache to begin.");
+            updateCacheStateDisplay();
+        }
+    </script>
+</body>
+</html>
